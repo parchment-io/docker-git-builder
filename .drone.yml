@@ -1,0 +1,234 @@
+---
+kind: pipeline
+type: kubernetes
+name: docker-image
+
+image_pull_secrets:
+  - drone_dockerconfig
+
+steps:
+- name: git-metadata
+  image: parchment-docker-local.jfrog.io/drone-plugins/git-metadata:stable
+  pull: always
+  settings:
+- name: pre-commit-verify
+  image: parchment-docker.jfrog.io/drone-plugins/ruby-builder:stable
+  depends_on: [git-metadata]
+  pull: always
+  commands:
+    - /pre-commit-verify.rb
+  when:
+    event:
+    - pull_request
+- name: semver-get
+  image: parchment-docker.jfrog.io/drone-plugins/version-bump:stable
+  depends_on: [git-metadata]
+  pull: always
+  settings:
+    bump_only: 'true'
+    semver_commit: 'false'
+  when:
+    event:
+    - pull_request
+- name: npmrc
+  image: plugins/docker
+  depends_on: [semver-get]
+  commands:
+    - touch /root/npm/.npmrc; chmod 600 /root/npm/.npmrc; echo "$NPMRC" > /root/npm/.npmrc
+  volumes:
+  - name: npm
+    path: /root/npm
+  when:
+    event:
+    - pull_request
+- name: build
+  image: plugins/docker
+  depends_on: [npmrc]
+  settings:
+    daemon_off: 'true'
+    repo: docker.pkg.github.com/parchment-io/dockerfiles-docker-git-builder/docker-git-builder
+    registry: docker.pkg.github.com
+    username:
+      from_secret: docker_username
+    password:
+      from_secret: docker_password
+    tags:
+      - latest
+      - pr-${DRONE_PULL_REQUEST}
+      - commit-${DRONE_COMMIT_SHA}
+    build_args_from_env:
+      - BUNDLE_PARCHMENT__JFROG__IO
+      - NPM_CONFIG_USERCONFIG
+  privileged: true
+  volumes:
+  - name: dockersock
+    path: /run
+  - name: npm
+    path: /root/npm
+  - name: shared-gem
+    path: /root/.gem
+  - name: shared-npm
+    path: /drone/src/.npm
+  environment:
+    BUNDLE_PARCHMENT__JFROG__IO:
+      from_secret: bundler_ro
+    NPM_CONFIG_USERCONFIG: /root/npm/.npmrc
+    DOCKER_USERNAME:
+      from_secret: docker_username
+    DOCKER_PASSWORD:
+      from_secret: docker_password
+  when:
+    event:
+    - pull_request
+- name: semver-commit
+  image: parchment-docker.jfrog.io/drone-plugins/version-bump:stable
+  depends_on: [git-metadata]
+  pull: always
+  settings:
+    bump_only: 'true'
+  when:
+    event:
+    - push
+    branch:
+      include:
+        - master
+# See docker-retag plugin for more info on how to specify a new tag explicitly
+- name: publish-version
+  image: parchment-docker-local.jfrog.io/drone-plugins/docker-retag:stable
+  depends_on: [semver-commit]
+  pull: always
+  volumes:
+  - name: dockersock
+    path: /run
+  settings:
+    image: docker.pkg.github.com/parchment-io/dockerfiles-docker-git-builder/docker-git-builder
+    create_git_tag: 'true'
+    dockerconfig:
+      from_secret: dockerconfig
+  when:
+    event:
+    - push
+    branch:
+      include:
+        - master
+
+services:
+- name: docker
+  image: docker:dind
+  privileged: true
+  volumes:
+  - name: dockersock
+    path: /var/run
+  settings:
+    registry: docker.pkg.github.com
+    username:
+      from_secret: docker_username
+    password:
+      from_secret: docker_password
+
+volumes:
+- name: dockersock
+  temp: {}
+- name: npm
+  temp: {}
+- name: shared-gem
+  host:
+    path: /mnt/runner-shared/drone/.gem
+- name: shared-npm
+  host:
+    path: /mnt/runner-shared/drone/.npm
+
+trigger:
+  event:
+    - push
+    - pull_request
+  branch:
+    - master
+---
+kind: pipeline
+type: kubernetes
+name: promote
+
+image_pull_secrets:
+  - drone_dockerconfig
+
+steps:
+- name: git-metadata
+  image: parchment-docker-local.jfrog.io/drone-plugins/git-metadata:stable
+  pull: always
+  settings:
+- name: deployment-create
+  image: parchment-docker.jfrog.io/drone-plugins/github-deployment:stable
+  pull: always
+  settings:
+    status: pending
+    access_token:
+      from_secret: github_token
+- name: deployment-update
+  image: parchment-docker.jfrog.io/drone-plugins/github-deployment:stable
+  pull: always
+  settings:
+    access_token:
+      from_secret: github_token
+  when:
+    status:
+    - success
+    - failure
+
+services:
+- name: docker
+  image: docker:dind
+  privileged: true
+  volumes:
+  - name: dockersock
+    path: /var/run
+
+volumes:
+- name: dockersock
+  temp: {}
+
+trigger:
+  event:
+    - promote
+---
+kind: secret
+name: drone_dockerconfig
+get:
+  path: drone/data/ci
+  name: dockerconfig
+---
+kind: secret
+name: dockerconfig
+get:
+  path: drone/data/github
+  name: dockerconfig
+---
+kind: secret
+name: docker_username
+get:
+  path: drone/data/github
+  name: docker_username
+---
+kind: secret
+name: docker_password
+get:
+  path: drone/data/github
+  name: docker_password
+---
+kind: secret
+name: github_token
+get:
+  path: drone/data/github
+  name: access_token
+---
+kind: secret
+name: bundler_ro
+get:
+  path: drone/data/ci
+  name: bundler_ro
+---
+kind: secret
+name: npmrc
+get:
+  path: drone/data/ci
+  name: npmrc
