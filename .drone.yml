@@ -80,6 +80,30 @@ steps:
   when:
     event:
     - pull_request
+- name: vuln-scan-trivy
+  image: aquasec/trivy
+  depends_on: [build]
+  settings:
+    daemon_off: 'true'
+    repo: docker.pkg.github.com/parchment-io/dockerfiles-docker-git-builder/docker-git-builder
+    registry: docker.pkg.github.com
+    username:
+      from_secret: docker_username
+    password:
+      from_secret: docker_password
+  commands:
+    - trivy --exit-code 1 --quiet --severity CRITICAL,HIGH docker.pkg.github.com/parchment-io/dockerfiles-docker-git-builder/docker-git-builder:pr-${DRONE_PULL_REQUEST}
+  volumes:
+  - name: dockersock
+    path: /run
+  environment:
+    DOCKER_USERNAME:
+      from_secret: docker_username
+    DOCKER_PASSWORD:
+      from_secret: docker_password
+  when:
+    event:
+    - pull_request
 - name: semver-commit
   image: parchment-docker.jfrog.io/drone-plugins/version-bump:stable
   depends_on: [git-metadata]
@@ -234,4 +258,4 @@ get:
   name: npmrc
 ---
 kind: signature
-hmac: c871c5b4080ec2f4e5fb001bcb9c753463357a1d0697599fd720d53799b7918e
+hmac: 9df6c60cbcd41bf00afb95afe2b9c479b1db8c113fecd52cfdce78243c147d63
