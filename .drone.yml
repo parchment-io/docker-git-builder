@@ -80,7 +80,7 @@ steps:
   when:
     event:
     - pull_request
-- name: vuln-scan-trivy
+- name: trivy-vuln-scan
   image: aquasec/trivy
   depends_on: [build]
   commands:
@@ -245,4 +245,4 @@ get:
   name: npmrc
 ---
 kind: signature
-hmac: 3f0a91e5d82658e2a6409be5e68f0227d978fbc83157f8e86da4b6565e21a08e
+hmac: 24aa9eae1cf99d10e6c6067af9b33697ebf74e849150c1ab6e8721d0dcb14a8f
