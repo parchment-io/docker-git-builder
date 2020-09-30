@@ -84,7 +84,7 @@ steps:
   image: aquasec/trivy
   depends_on: [build]
   commands:
-    - trivy --exit-code 1 --quiet --severity CRITICAL,HIGH docker.pkg.github.com/parchment-io/dockerfiles-docker-git-builder/docker-git-builder:pr-${DRONE_PULL_REQUEST}
+    - trivy --exit-code 1 --quiet --severity CRITICAL docker.pkg.github.com/parchment-io/dockerfiles-docker-git-builder/docker-git-builder:pr-${DRONE_PULL_REQUEST}
   volumes:
   - name: dockersock
     path: /run
@@ -245,4 +245,4 @@ get:
   name: npmrc
 ---
 kind: signature
-hmac: 24aa9eae1cf99d10e6c6067af9b33697ebf74e849150c1ab6e8721d0dcb14a8f
+hmac: b33745c9901c7a30a68d176fdc726c3b96c1c651aedbbe72854e2e6668016e84
