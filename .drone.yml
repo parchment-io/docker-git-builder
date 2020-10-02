@@ -84,7 +84,7 @@ steps:
   image: aquasec/trivy
   depends_on: [build]
   commands:
-    - trivy --exit-code 1 --quiet --severity CRITICAL,HIGH docker.pkg.github.com/parchment-io/dockerfiles-docker-git-builder/docker-git-builder:pr-${DRONE_PULL_REQUEST}
+    - trivy --exit-code 1 --quiet --skip-dirs "/usr/lib/ruby/gems,/usr/local/bundle/" --severity CRITICAL docker.pkg.github.com/parchment-io/dockerfiles-docker-git-builder/docker-git-builder:pr-${DRONE_PULL_REQUEST}
   volumes:
   - name: dockersock
     path: /run
@@ -245,4 +245,4 @@ get:
   name: npmrc
 ---
 kind: signature
-hmac: 24aa9eae1cf99d10e6c6067af9b33697ebf74e849150c1ab6e8721d0dcb14a8f
+hmac: 4dd933a84771f23ad041b576bddafdf1400f5e9ca6773a87359c04fb0f8eda3a
