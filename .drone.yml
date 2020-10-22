@@ -41,9 +41,24 @@ steps:
   when:
     event:
     - pull_request
+- name: settings-xml
+  image: infrastructureascode/aws-cli:1.16.220
+  depends_on: [pre-commit-verify]
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: aws_access_key_id
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: aws_secret_access_key
+  volumes:
+    - name: shared-m2
+      path: /root/.m2
+  commands:
+    - aws s3 cp s3://parchment-chef/settings.xml /root/.m2/settings.xml
 - name: build
   image: plugins/docker
-  depends_on: [npmrc]
+  depends_on:
+    - npmrc
+    - settings-xml
   settings:
     daemon_off: 'true'
     repo: docker.pkg.github.com/parchment-io/dockerfiles-docker-git-builder/docker-git-builder
@@ -59,6 +74,8 @@ steps:
     build_args_from_env:
       - BUNDLE_PARCHMENT__JFROG__IO
       - NPM_CONFIG_USERCONFIG
+      - MAVEN_USERNAME
+      - MAVEN_PASSWORD
   privileged: true
   volumes:
   - name: dockersock
@@ -69,6 +86,8 @@ steps:
     path: /root/.gem
   - name: shared-npm
     path: /drone/src/.npm
+  - name: shared-m2
+    path: /root/.m2
   environment:
     BUNDLE_PARCHMENT__JFROG__IO:
       from_secret: bundler_ro
@@ -77,6 +96,10 @@ steps:
       from_secret: docker_username
     DOCKER_PASSWORD:
       from_secret: docker_password
+    MAVEN_USERNAME:
+      from_secret: maven_username
+    MAVEN_PASSWORD:
+      from_secret: maven_password
   when:
     event:
     - pull_request
@@ -148,6 +171,9 @@ volumes:
 - name: shared-npm
   host:
     path: /mnt/runner-shared/drone/.npm
+- name: shared-m2
+  host:
+    path: /mnt/runner-shared/drone/.m2
 
 trigger:
   event:
@@ -227,6 +253,30 @@ get:
   name: docker_password
 ---
 kind: secret
+name: aws_access_key_id
+get:
+  path: drone/data/ci
+  name: aws_access_key_id
+---
+kind: secret
+name: aws_secret_access_key
+get:
+  path: drone/data/ci
+  name: aws_secret_access_key
+---
+kind: secret
+name: maven_username
+get:
+  path: drone/data/ci
+  name: maven_username
+---
+kind: secret
+name: maven_password
+get:
+  path: drone/data/ci
+  name: maven_password
+---
+kind: secret
 name: github_token
 get:
   path: drone/data/github
@@ -245,4 +295,4 @@ get:
   name: npmrc
 ---
 kind: signature
-hmac: 4dd933a84771f23ad041b576bddafdf1400f5e9ca6773a87359c04fb0f8eda3a
+hmac: ea6a7c5e6041d8852dc857f1cb1bbd49a0cd0c5b9b737c6269b3251db7c5b769
