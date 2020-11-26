@@ -8,11 +8,11 @@ image_pull_secrets:
 
 steps:
 - name: git-metadata
-  image: parchment-docker-local.jfrog.io/drone-plugins/git-metadata:stable
+  image: prod-docker-parchment-docker-jfrog-io.us-west-2.aws.parchment.com/drone-plugins/git-metadata:stable
   pull: always
   settings:
 - name: pre-commit-verify
-  image: parchment-docker.jfrog.io/drone-plugins/ruby-builder:stable
+  image: prod-docker-parchment-docker-jfrog-io.us-west-2.aws.parchment.com/drone-plugins/ruby-builder:stable
   depends_on: [git-metadata]
   pull: always
   commands:
@@ -21,7 +21,7 @@ steps:
     event:
     - pull_request
 - name: semver-get
-  image: parchment-docker.jfrog.io/drone-plugins/version-bump:stable
+  image: prod-docker-parchment-docker-jfrog-io.us-west-2.aws.parchment.com/drone-plugins/version-bump:stable
   depends_on: [git-metadata]
   pull: always
   settings:
@@ -31,7 +31,7 @@ steps:
     event:
     - pull_request
 - name: npmrc
-  image: plugins/docker
+  image: prod-docker-index-docker-io.us-west-2.aws.parchment.com/plugins/docker
   depends_on: [semver-get]
   commands:
     - touch /root/npm/.npmrc; chmod 600 /root/npm/.npmrc; echo "$NPMRC" > /root/npm/.npmrc
@@ -41,9 +41,24 @@ steps:
   when:
     event:
     - pull_request
+- name: settings-xml
+  image: prod-docker-index-docker-io.us-west-2.aws.parchment.com/infrastructureascode/aws-cli:1.16.220
+  depends_on: [pre-commit-verify]
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: aws_access_key_id
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: aws_secret_access_key
+  volumes:
+    - name: shared-m2
+      path: /root/.m2
+  commands:
+    - aws s3 cp s3://parchment-chef/settings.xml /root/.m2/settings.xml
 - name: build
-  image: plugins/docker
-  depends_on: [npmrc]
+  image: prod-docker-index-docker-io.us-west-2.aws.parchment.com/plugins/docker
+  depends_on:
+    - npmrc
+    - settings-xml
   settings:
     daemon_off: 'true'
     repo: docker.pkg.github.com/parchment-io/dockerfiles-docker-git-builder/docker-git-builder
@@ -59,6 +74,8 @@ steps:
     build_args_from_env:
       - BUNDLE_PARCHMENT__JFROG__IO
       - NPM_CONFIG_USERCONFIG
+      - MAVEN_USERNAME
+      - MAVEN_PASSWORD
   privileged: true
   volumes:
   - name: dockersock
@@ -69,6 +86,8 @@ steps:
     path: /root/.gem
   - name: shared-npm
     path: /drone/src/.npm
+  - name: shared-m2
+    path: /root/.m2
   environment:
     BUNDLE_PARCHMENT__JFROG__IO:
       from_secret: bundler_ro
@@ -77,11 +96,15 @@ steps:
       from_secret: docker_username
     DOCKER_PASSWORD:
       from_secret: docker_password
+    MAVEN_USERNAME:
+      from_secret: maven_username
+    MAVEN_PASSWORD:
+      from_secret: maven_password
   when:
     event:
     - pull_request
 - name: trivy-vuln-scan
-  image: aquasec/trivy
+  image: prod-docker-index-docker-io.us-west-2.aws.parchment.com/aquasec/trivy
   depends_on: [build]
   commands:
     - trivy --exit-code 1 --quiet --skip-dirs "/usr/lib/ruby/gems,/usr/local/bundle/" --severity CRITICAL docker.pkg.github.com/parchment-io/dockerfiles-docker-git-builder/docker-git-builder:pr-${DRONE_PULL_REQUEST}
@@ -92,7 +115,7 @@ steps:
     event:
     - pull_request
 - name: semver-commit
-  image: parchment-docker.jfrog.io/drone-plugins/version-bump:stable
+  image: prod-docker-parchment-docker-jfrog-io.us-west-2.aws.parchment.com/drone-plugins/version-bump:stable
   depends_on: [git-metadata]
   pull: always
   settings:
@@ -105,7 +128,7 @@ steps:
         - main
 # See docker-retag plugin for more info on how to specify a new tag explicitly
 - name: publish-version
-  image: parchment-docker-local.jfrog.io/drone-plugins/docker-retag:stable
+  image: prod-docker-parchment-docker-jfrog-io.us-west-2.aws.parchment.com/drone-plugins/docker-retag:stable
   depends_on: [semver-commit]
   pull: always
   volumes:
@@ -125,7 +148,7 @@ steps:
 
 services:
 - name: docker
-  image: docker:dind
+  image: prod-docker-index-docker-io.us-west-2.aws.parchment.com/library/docker:dind
   privileged: true
   volumes:
   - name: dockersock
@@ -148,6 +171,9 @@ volumes:
 - name: shared-npm
   host:
     path: /mnt/runner-shared/drone/.npm
+- name: shared-m2
+  host:
+    path: /mnt/runner-shared/drone/.m2
 
 trigger:
   event:
@@ -165,18 +191,18 @@ image_pull_secrets:
 
 steps:
 - name: git-metadata
-  image: parchment-docker-local.jfrog.io/drone-plugins/git-metadata:stable
+  image: prod-docker-parchment-docker-jfrog-io.us-west-2.aws.parchment.com/drone-plugins/git-metadata:stable
   pull: always
   settings:
 - name: deployment-create
-  image: parchment-docker.jfrog.io/drone-plugins/github-deployment:stable
+  image: prod-docker-parchment-docker-jfrog-io.us-west-2.aws.parchment.com/drone-plugins/github-deployment:stable
   pull: always
   settings:
     status: pending
     access_token:
       from_secret: github_token
 - name: deployment-update
-  image: parchment-docker.jfrog.io/drone-plugins/github-deployment:stable
+  image: prod-docker-parchment-docker-jfrog-io.us-west-2.aws.parchment.com/drone-plugins/github-deployment:stable
   pull: always
   settings:
     access_token:
@@ -188,7 +214,7 @@ steps:
 
 services:
 - name: docker
-  image: docker:dind
+  image: prod-docker-index-docker-io.us-west-2.aws.parchment.com/library/docker:dind
   privileged: true
   volumes:
   - name: dockersock
@@ -227,6 +253,30 @@ get:
   name: docker_password
 ---
 kind: secret
+name: aws_access_key_id
+get:
+  path: drone/data/ci
+  name: aws_access_key_id
+---
+kind: secret
+name: aws_secret_access_key
+get:
+  path: drone/data/ci
+  name: aws_secret_access_key
+---
+kind: secret
+name: maven_username
+get:
+  path: drone/data/ci
+  name: maven_username
+---
+kind: secret
+name: maven_password
+get:
+  path: drone/data/ci
+  name: maven_password
+---
+kind: secret
 name: github_token
 get:
   path: drone/data/github
@@ -245,4 +295,4 @@ get:
   name: npmrc
 ---
 kind: signature
-hmac: 4dd933a84771f23ad041b576bddafdf1400f5e9ca6773a87359c04fb0f8eda3a
+hmac: 4ded3ab5bfa196274aace9fce2f4087c7161ba03a1af04cb829069073ac20f31
