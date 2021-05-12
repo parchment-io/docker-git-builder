@@ -107,7 +107,7 @@ steps:
   image: prod-docker-index-docker-io.us-west-2.aws.parchment.com/aquasec/trivy
   depends_on: [build]
   commands:
-    - trivy --exit-code 1 --quiet --skip-dirs "/usr/lib/ruby/gems,/usr/local/bundle/" --severity CRITICAL --ignore-unfixed docker.pkg.github.com/parchment-io/dockerfiles-docker-git-builder/docker-git-builder:pr-${DRONE_PULL_REQUEST}
+    - trivy --exit-code 1 --quiet --skip-dirs "/usr/lib/ruby/gems" --skip-dirs "/usr/local/bundle/" --severity CRITICAL --ignore-unfixed docker.pkg.github.com/parchment-io/dockerfiles-docker-git-builder/docker-git-builder:pr-${DRONE_PULL_REQUEST}
   volumes:
   - name: dockersock
     path: /run
@@ -295,4 +295,4 @@ get:
   name: npmrc
 ---
 kind: signature
-hmac: ef42269a7c49d6b371d29082e15c34f31e5d9499cce9fabaed415767c464998e
+hmac: 873274487b2eb4b1c6cf8a5360576d33a31d181cc6eafac27c53e26e4a1fc089
